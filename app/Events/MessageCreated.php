@@ -2,14 +2,15 @@
 
 namespace App\Events;
 
+use App\Models\Message;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
-class TypingStarted implements ShouldBroadcastNow
+class MessageCreated implements ShouldBroadcastNow
 {
     public function __construct(
         public int $conversationId,
-        public int $userId
+        public array $messagePayload // минимальный JSON для фронта
     ) {}
 
     public function broadcastOn(): array
@@ -19,11 +20,11 @@ class TypingStarted implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'typing.started';
+        return 'message.created';
     }
 
     public function broadcastWith(): array
     {
-        return ['user_id' => $this->userId];
+        return $this->messagePayload;
     }
 }

@@ -7,13 +7,11 @@ use App\Models\User;
 
 class ConversationPolicy
 {
+    /**
+     * Видеть/доступ к диалогу разрешено только участнику.
+     */
     public function view(User $user, Conversation $conversation): bool
     {
-        return $conversation->users()->whereKey($user->id)->exists();
-    }
-
-    public function sendMessage(User $user, Conversation $conversation): bool
-    {
-        return $conversation->users()->whereKey($user->id)->exists();
+        return $conversation->users()->whereKey($user->getKey())->exists();
     }
 }

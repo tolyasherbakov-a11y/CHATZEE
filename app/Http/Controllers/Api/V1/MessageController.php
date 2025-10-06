@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Events\MessageSent;
+use App\Events\MessageCreated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -44,5 +45,15 @@ class MessageController extends Controller
             'conversation_id' => $msg->conversation_id,
             'user_id' => $msg->user_id,
         ], 201);
+
+        $payload = [
+            'id'              => (int) $message->id,
+            'conversation_id' => (int) $message->conversation_id,
+            'user_id'         => (int) $message->user_id,
+            'body'            => (string) $message->body,
+            'created_at'      => $message->created_at?->toISOString(),
+        ];
+        
+        event(new MessageCreated((int) $message->conversation_id, $payload));
     }
 }

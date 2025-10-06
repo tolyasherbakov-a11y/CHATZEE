@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
 class TypingStopped implements ShouldBroadcastNow
@@ -14,16 +14,16 @@ class TypingStopped implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new PresenceChannel("presence.conversation.".$this->conversationId)];
+        return [new PrivateChannel('conversation.' . $this->conversationId)];
     }
 
     public function broadcastAs(): string
     {
-        return "typing.stopped";
+        return 'typing.stopped';
     }
 
     public function broadcastWith(): array
     {
-        return ["conversation_id" => $this->conversationId, "user_id" => $this->userId];
+        return ['user_id' => $this->userId];
     }
 }

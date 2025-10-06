@@ -15,15 +15,16 @@ class TypingController extends Controller
     {
         Gate::authorize("view", $conversation);
 
-        event(new TypingStarted($conversation->id, $request->user()->id));
-        return response()->noContent(); // 204
+        event(new TypingStarted($conversation->id, (int) $request->user()->getKey()));
+        return response()->json(['ok' => true]); // 204
     }
 
     public function stop(Request $request, Conversation $conversation)
     {
         Gate::authorize("view", $conversation);
 
-        event(new TypingStopped($conversation->id, $request->user()->id));
-        return response()->noContent(); // 204
+        event(new TypingStopped($conversation->id, (int) $request->user()->getKey()));
+
+        return response()->json(['ok' => true]); // 204
     }
 }
