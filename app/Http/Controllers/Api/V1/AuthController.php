@@ -1,120 +1,103 @@
 <?php
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Auth\LoginRequest;
-use App\Http\Requests\Auth\RegisterRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Exceptions\RoleDoesNotExist;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(RegisterRequest $request)
+    public function register(Request $request)
     {
-        $data = $request->validated();
+        $data = $request->validate([
+            'name'                  => ['required', 'string', 'max:255'],
+            'email'                 => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password'              => ['required', 'confirmed', Password::min(8)],
+        ]);
 
-        $userModel = config("auth.providers.users.model");
-        /** @var \App\Models\User $user */
-        $user = new $userModel();
-        $user->name = $data["name"];
-        $user->email = $data["email"];
-        $user->password = Hash::make($data["password"]);
-        $user->save();
+        $user = User::create([
+            'name'     => $data['name'],
+            'email'    => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
 
-        // Default role = user (create if missing)
-        if (method_exists($user, "assignRole")) {
-            try {
-                $user->assignRole("user");
-            } catch (RoleDoesNotExist $e) {
-                Role::findOrCreate("user");
-                $user->assignRole("user");
-            }
-        }
+        // Если есть базовые роли — можно навесить здесь, например:
+        // $user->assignRole('user');
 
-        $token = $user->createToken("api")->plainTextToken;
+        $token = $user->createToken('default')->plainTextToken;
 
+        // ВАЖНО: возвращаем id ИМЕННО созданного пользователя
         return response()->json([
-            "user" => [
-                "id" => $user->id,
-                "name" => $user->name,
-                "email" => $user->email,
-                "roles" => method_exists($user, "getRoleNames") ? $user->getRoleNames() : [],
-            ],
-            "token" => $token,
+            'id'    => (string) $user->getKey(),
+            'name'  => $user->name,
+            'email' => $user->email,
+            'token' => $token,
         ], 201);
     }
 
-    public function login(LoginRequest $request)
+    public function login(Request $request)
     {
-        $data = $request->validated();
+        $data = $request->validate([
+            'email'    => ['required', 'email'],
+            'password' => ['required'],
+        ]);
 
-        $userModel = config("auth.providers.users.model");
-        /** @var \App\Models\User|null $user */
-        $user = $userModel::query()->where("email", $data["email"])->first();
+        $user = User::where('email', $data['email'])->first();
 
-        if (! $user || ! Hash::check($data["password"], $user->password)) {
-            return response()->json(["message" => "Invalid credentials"], 422);
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['The provided credentials are incorrect.'],
+            ]);
         }
 
-        $token = $user->createToken("api")->plainTextToken;
+        $token = $user->createToken('default')->plainTextToken;
+
+        // Также возвращаем корректный id пользователя
+        return response()->json([
+            'id'    => (string) $user->getKey(),
+            'name'  => $user->name,
+            'email' => $user->email,
+            'token' => $token,
+        ]);
+    }
+
+    public function me(Request $request)
+    {
+        $u = $request->user();
 
         return response()->json([
-            "user" => [
-                "id" => $user->id,
-                "name" => $user->name,
-                "email" => $user->email,
-                "roles" => method_exists($user, "getRoleNames") ? $user->getRoleNames() : [],
-            ],
-            "token" => $token,
+            'id'    => (string) $u->getKey(),
+            'name'  => $u->name,
+            'email' => $u->email,
         ]);
     }
 
     public function logout(Request $request)
     {
-        $user = $request->user();
-        if ($user && $user->currentAccessToken()) {
-            $user->currentAccessToken()->delete();
-        }
-        return response()->noContent();
-    }
+        $request->user()->currentAccessToken()?->delete();
 
-    public function me(Request $request)
-    {
-        $user = $request->user();
-        return response()->json([
-            "id" => $user->id,
-            "name" => $user->name,
-            "email" => $user->email,
-            "roles" => method_exists($user, "getRoleNames") ? $user->getRoleNames() : [],
-            "permissions" => method_exists($user, "getAllPermissions") ? $user->getAllPermissions()->pluck("name") : [],
-        ]);
+        return response()->json(['message' => 'Logged out']);
     }
 
     public function issueToken(Request $request)
     {
-        $request->validate([
-            "name" => "required|string",
-            "abilities" => "array",
-            "abilities.*" => "string",
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
         ]);
 
-        $token = $request->user()->createToken(
-            $request->string("name"),
-            $request->input("abilities", ["*"])
-        )->plainTextToken;
+        $token = $request->user()->createToken($data['name'])->plainTextToken;
 
-        return response()->json(["token" => $token], 201);
+        return response()->json(['token' => $token], 201);
     }
 
-    public function revokeToken(Request $request, int $id)
+    public function revokeToken(Request $request, string $id)
     {
-        $token = $request->user()->tokens()->where("id", $id)->first();
-        if (! $token) {
-            return response()->json(["message" => "Token not found"], 404);
-        }
-        $token->delete();
-        return response()->noContent();
+        $request->user()->tokens()->whereKey($id)->delete();
+
+        return response()->json(['message' => 'Token revoked']);
     }
 }

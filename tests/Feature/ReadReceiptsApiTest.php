@@ -31,6 +31,7 @@ class ReadReceiptsApiTest extends TestCase
         $b = $this->register("Bob", "bob@example.com");
         $conv = $this->withToken($a["token"])
             ->postJson("/api/v1/conversations/start", ["user_id" => $b["id"]])
+            ->dump()
             ->assertCreated();
         $convId = $conv->json("id");
         // Alice пишет 2 сообщения

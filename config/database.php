@@ -34,7 +34,19 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'database' => value(function () {
+        $db = env('DB_DATABASE', 'database.sqlite');
+        // если путь относительный — сделаем абсолютным через database_path()
+        if (!is_string($db) || $db === '') {
+            return database_path('database.sqlite');
+        }
+        // абсолютный путь? оставляем как есть
+        if (str_starts_with($db, DIRECTORY_SEPARATOR)) {
+            return $db;
+        }
+        // относительный — превратим в абсолютный
+        return database_path($db);
+    }),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,

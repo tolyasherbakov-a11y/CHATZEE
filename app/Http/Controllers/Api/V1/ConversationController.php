@@ -15,7 +15,7 @@ class ConversationController extends Controller
         $me = $request->user();
 
         $convs = Conversation::query()
-            ->whereHas('users', fn ($q) => $q->whereKey($me->id))
+            ->whereHas('users', fn ($q) => $q->whereKey($me->getKey()))
             ->with(['users:id,name,email'])
             ->latest('updated_at')
             ->paginate(15);
@@ -23,7 +23,7 @@ class ConversationController extends Controller
         // Добавляем счётчик непрочитанных на лету
         $convs->getCollection()->transform(function ($c) use ($me) {
             $last = ConversationRead::where('conversation_id', $c->id)
-                ->where('user_id', $me->id)
+                ->where('user_id', $me->getKey())
                 ->value('last_read_message_id') ?? 0;
 
             $c->unread_count = $c->messages()->where('id', '>', $last)->count();
@@ -35,24 +35,24 @@ class ConversationController extends Controller
 
     public function startDirect(Request $request)
     {
-        // Без exists/different — всё проверим вручную ниже
+        // Никаких numeric/int правил — id может быть строковым (UUID/ULID)
         $data = $request->validate([
-            'user_id' => ['required', 'numeric', 'min:1'],
+            'user_id' => ['required'],
         ]);
 
-        $me = $request->user();
-        $otherId = (int) $data['user_id'];
+        $meId     = (string) $request->user()->getKey();
+        $otherId  = (string) $data['user_id'];
 
-        // Нельзя стартовать диалог с самим собой
-        if ($otherId === (int) $me->id) {
+        // Запретить диалог с самим собой — сравниваем как строки
+        if ($otherId === $meId) {
             return response()->json(['message' => 'Cannot start a direct conversation with yourself.'], 422);
         }
 
-        // 404, если такого пользователя нет
-        $other = User::findOrFail($otherId);
+        // Находим другого пользователя с учётом типа PK
+        $other = User::query()->whereKey($otherId)->firstOrFail();
 
-        // Найти или создать 1–1 диалог
-        $conv = Conversation::oneToOne($me, $other);
+        // Найти/создать 1–1 диалог
+        $conv = Conversation::oneToOne($request->user(), $other);
 
         return response()->json([
             'id'       => $conv->id,
