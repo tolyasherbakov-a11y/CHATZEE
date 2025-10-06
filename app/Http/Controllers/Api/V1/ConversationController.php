@@ -35,20 +35,23 @@ class ConversationController extends Controller
 
     public function startDirect(Request $request)
     {
-        // Без exists и без different — самопроверку делаем вручную ниже
+        // Без exists/different — всё проверим вручную ниже
         $data = $request->validate([
-            'user_id' => ['required', 'integer'],
+            'user_id' => ['required', 'numeric', 'min:1'],
         ]);
 
         $me = $request->user();
-        if ((int) $data['user_id'] === (int) $me->id) {
+        $otherId = (int) $data['user_id'];
+
+        // Нельзя стартовать диалог с самим собой
+        if ($otherId === (int) $me->id) {
             return response()->json(['message' => 'Cannot start a direct conversation with yourself.'], 422);
         }
 
-        // Проверим существование пользователя тут — вернёт 404, если id неверный
-        $other = User::findOrFail((int) $data['user_id']);
+        // 404, если такого пользователя нет
+        $other = User::findOrFail($otherId);
 
-        // Создаём/находим 1–1 диалог
+        // Найти или создать 1–1 диалог
         $conv = Conversation::oneToOne($me, $other);
 
         return response()->json([

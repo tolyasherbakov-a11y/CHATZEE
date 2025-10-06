@@ -30,7 +30,10 @@ class MessageSent implements ShouldBroadcast
             "conversation_id" => $this->message->conversation_id,
             "user_id" => $this->message->user_id,
             "body" => $this->message->body,
-            "attachments" => $this->message->relationLoaded('attachments') ? $this->message->attachments->map->toArray()->all() : [],
+            "attachments" => $this->message->relationLoaded('attachments')
+            ? $this->message->attachments->map->toArray()->all()
+            : [],
+
             "created_at" => optional($this->message->created_at)->toISOString(),
         ];
     }

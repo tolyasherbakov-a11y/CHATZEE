@@ -13,36 +13,52 @@ class AttachmentController extends Controller
 {
     // Вернёт pre-signed PUT URL для прямой загрузки в S3
     public function presign(Request $request, Conversation $conversation)
-    {
-        Gate::authorize("view", $conversation);
-        $data = $request->validate([
-            "filename" => ["required","string"],
-            "mime" => ["nullable","string"],
-            "size" => ["nullable","integer","min:0"],
-        ]);
-        // Генерируем key
-        $safeName = Str::slug(pathinfo($data["filename"], PATHINFO_FILENAME));
-        $ext = pathinfo($data["filename"], PATHINFO_EXTENSION);
-        $key = "attachments/{$conversation->id}/" . Str::uuid() . "_" . $safeName . ($ext ? ".{$ext}" : "");
-        $expires = now()->addMinutes(5);
-        try {
-            // Подпишем URL на PUT (если драйвер/креды сконфигурены)
-            $uploadUrl = Storage::disk("s3")->temporaryUrl($key, $expires, ["Content-Type" => $data["mime"] ?? "application/octet-stream"], "PUT");
-        } catch (\Throwable $e) {
-            // В тестовой среде S3 может быть не настроен — вернём заглушку
-            $uploadUrl = url("/fake-upload?key=".rawurlencode($key));
-        }
-        // Публичная ссылка через CDN/endpoint
-        $public = config("filesystems.disks.s3.url")
-            ? rtrim(config("filesystems.disks.s3.url"), "/") . "/" . ltrim($key, "/")
-            : "/s3/" . ltrim($key, "/");
-        return response()->json([
-            "key" => $key,
-            "upload_url" => $uploadUrl,
-            "public_url" => $public,
-            "expires_at" => $expires->toISOString(),
-        ]);
+{
+    Gate::authorize("view", $conversation);
+
+    $data = $request->validate([
+        "filename" => ["required","string"],
+        "mime" => ["nullable","string"],
+        "size" => ["nullable","integer","min:0"],
+    ]);
+
+    // Генерируем key
+    $safeName = Str::slug(pathinfo($data["filename"], PATHINFO_FILENAME));
+    $ext = pathinfo($data["filename"], PATHINFO_EXTENSION);
+    $key = "attachments/{$conversation->id}/" . Str::uuid() . "_" . $safeName . ($ext ? ".{$ext}" : "");
+    $expires = now()->addMinutes(5);
+
+    try {
+        // Подписанный URL на PUT — ContentType обязателен для корректной подписи
+        $uploadUrl = \Illuminate\Support\Facades\Storage::disk("s3")->temporaryUploadUrl(
+            $key,
+            $expires,
+            ['ContentType' => $data['mime'] ?? 'application/octet-stream']
+        );
+    } catch (\Throwable $e) {
+        // В тестовой среде S3 может быть не сконфигурирован — отдаём заглушку
+        $uploadUrl = url("/fake-upload?key=".rawurlencode($key));
     }
+
+    // Публичная ссылка через CDN/endpoint (если настроен), иначе — локальный префикс
+    $public = config("filesystems.disks.s3.url")
+        ? rtrim(config("filesystems.disks.s3.url"), "/") . "/" . ltrim($key, "/")
+        : "/s3/" . ltrim($key, "/");
+
+    return response()->json([
+        "key" => $key,
+        "upload" => [
+            "url" => $uploadUrl,
+            "method" => "PUT",
+            "headers" => [
+                // фронту важно отправить ровно такой же Content-Type, что использовался в подписи
+                "Content-Type" => $data['mime'] ?? 'application/octet-stream',
+            ],
+        ],
+        "public_url" => $public,
+    ], 201);
+}
+
     // Создаёт сообщение с вложением (предполагается, что клиент уже загрузил объект по key)
     public function attach(Request $request, Conversation $conversation)
     {
