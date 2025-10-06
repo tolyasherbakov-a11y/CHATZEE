@@ -25,12 +25,8 @@ class AuthController extends Controller
             'password' => Hash::make($data['password']),
         ]);
 
-        // Если есть базовые роли — можно навесить здесь, например:
-        // $user->assignRole('user');
-
         $token = $user->createToken('default')->plainTextToken;
 
-        // ВАЖНО: возвращаем id ИМЕННО созданного пользователя
         return response()->json([
             'id'    => (string) $user->getKey(),
             'name'  => $user->name,
@@ -56,7 +52,6 @@ class AuthController extends Controller
 
         $token = $user->createToken('default')->plainTextToken;
 
-        // Также возвращаем корректный id пользователя
         return response()->json([
             'id'    => (string) $user->getKey(),
             'name'  => $user->name,

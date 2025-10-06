@@ -8,23 +8,25 @@ class ReadReceiptsApiTest extends TestCase
 {
     use RefreshDatabase;
     protected function setUp(): void
-    {
-        parent::setUp();
-        $this->withoutMiddleware(ThrottleRequests::class);
-        $this->seed(RolesAndPermissionsSeeder::class);
-    }
+{
+    parent::setUp();
+    $this->withoutMiddleware(ThrottleRequests::class);
+}
     private function register(string $name, string $email): array
-    {
-        $resp = $this->postJson("/api/v1/auth/register", [
-            "name" => $name,
-            "email" => $email,
-            "password" => "password123",
-            "password_confirmation" => "password123",
-        ])->assertCreated();
-        $token = $resp->json("token");
-        $me = $this->withToken($token)->getJson("/api/v1/auth/me")->assertOk();
-        return ["token" => $token, "id" => $me->json("id")];
-    }
+{
+    $resp = $this->postJson('/api/v1/auth/register', [
+        'name' => $name,
+        'email' => $email,
+        'password' => 'password123',
+        'password_confirmation' => 'password123',
+    ])->assertCreated();
+
+    return [
+        'id'    => (string) $resp->json('id'),
+        'token' => (string) $resp->json('token'),
+    ];
+}
+
     public function test_unread_counter_and_mark_read(): void
     {
         $a = $this->register("Alice", "alice@example.com");

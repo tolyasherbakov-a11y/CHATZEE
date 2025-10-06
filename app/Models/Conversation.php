@@ -21,31 +21,24 @@ class Conversation extends Model
     }
 
     public static function oneToOne(\App\Models\User $a, \App\Models\User $b): self
-{
-    // Всегда упорядочим пару (a,b) по id, чтобы поиск был детерминированным
-    [$u1, $u2] = ((int)$a->id < (int)$b->id) ? [$a, $b] : [$b, $a];
-
-    // 1) Попробуем найти существующий диалог a<->b (is_group = false)
-    $existing = static::query()
-        ->where('is_group', false)
-        ->whereHas('users', fn ($q) => $q->whereKey($u1->id))
-        ->whereHas('users', fn ($q) => $q->whereKey($u2->id))
-        ->first();
-
-    if ($existing) {
-        // touch, чтобы поднять наверх в списке
-        $existing->touch();
-        return $existing;
+    {
+        [$u1, $u2] = ((string)$a->getKey() < (string)$b->getKey()) ? [$a, $b] : [$b, $a];
+    
+        $existing = static::query()
+            ->where('is_group', false)
+            ->whereHas('users', fn ($q) => $q->whereKey($u1->getKey()))
+            ->whereHas('users', fn ($q) => $q->whereKey($u2->getKey()))
+            ->first();
+    
+        if ($existing) {
+            $existing->touch();
+            return $existing;
+        }
+    
+        $conv = static::create(['is_group' => false]);
+        $conv->users()->sync([$u1->getKey(), $u2->getKey()]);
+        $conv->touch();
+    
+        return $conv;
     }
-
-    // 2) Создаём новый и привязываем обоих
-    $conv = static::create([
-        'is_group' => false,
-    ]);
-
-    $conv->users()->sync([$u1->id, $u2->id]); // без детачей — свежая связка
-    $conv->touch();
-
-    return $conv;
-}
 }

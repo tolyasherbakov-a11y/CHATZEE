@@ -51,7 +51,7 @@ Route::prefix("v1")->group(function () {
 
         // Conversations & Messages (M4)
         Route::get("/conversations",                                   [ConversationController::class, "index"]);
-        Route::post("/conversations/start",                            [ConversationController::class, "startDirect"]);
+        Route::post('/conversations/start',                            [ConversationController::class, 'startDirect']);
         Route::get("/conversations/{conversation}/messages",           [MessageController::class, "index"]);
         Route::post("/conversations/{conversation}/messages",          [MessageController::class, "store"]);
         Route::post("/conversations/{conversation}/attachments/presign", [AttachmentController::class, "presign"]);
